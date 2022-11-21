@@ -1,0 +1,61 @@
+import warnings
+warnings.filterwarnings('ignore')
+import numpy as np
+import pandas as pd
+from sklearn.svm import OneClassSVM
+from sklearn.decomposition import PCA
+import matplotlib
+import matplotlib.pyplot as plt
+from sklearn.preprocessing import StandardScaler
+plt.rcParams["figure.figsize"] = (20,10)
+df = pd.read_csv('wt.csv')
+
+# remove spaces in columns name
+df.columns = df.columns.str.replace(' ','_')
+
+# splitting two WT in different dataset using location of turbine
+grouped = df.groupby(df.unitlocation)
+wtg40 = grouped.get_group("WTG40")
+
+# get failure times
+fault_time_wtg40 = wtg40.failure_time.unique()
+
+# get the failure status in dataset
+wtg40['total_runtime'] = [i*10 for i in range(1,len(wtg40)+1)]
+wtg40['is_fault'] = wtg40['total_runtime']< fault_time_wtg40.max()
+
+# remove some columns that are unnecessary
+df = wtg40.drop(['unitlocation', 'ttimestamplocal','total_runtime', 'failure_time'], axis=1)
+
+df['is_fault'] = df['is_fault'].astype('category')
+df['is_fault'] = df['is_fault'].cat.codes
+
+# final datasets for training
+y = df['is_fault']
+x= df.drop(['is_fault'],  axis=1)
+x.describe()
+fatures_name = x.columns.tolist()
+x_std = StandardScaler().fit_transform(x)
+x_std = pd.DataFrame(x_std,columns= fatures_name)
+x_std.head(5)
+
+pca_ = PCA().fit(x_std)
+desired_variance = 0.90
+fig, ax = plt.subplots()
+yi = np.cumsum(pca_.explained_variance_ratio_)
+xi = np.arange(1, yi.shape[0]+1, step=1)
+plt.ylim(0.0,1.1)
+plt.plot(xi, yi, marker='o', linestyle='--', color='b')
+plt.xlabel('Number of Components')
+plt.xticks(np.arange(1, yi.shape[0]+2, step=1))
+plt.ylabel('Cumulative variance (%)', fontsize=16)
+plt.title('The number of components needed to explain variance')
+plt.axhline(y=desired_variance, color='r', linestyle='-')
+plt.text(1, desired_variance+ 0.05, str(desired_variance*100) +'% cut-off threshold', color='b', fontsize=16)
+ax.grid(axis='x')
+plt.show()
+
+plt.scatter(X[:,0], X[:,1], color='blue')
+plt.ylabel("PC1")
+plt.xlabel("PC2")
+plt.show()
